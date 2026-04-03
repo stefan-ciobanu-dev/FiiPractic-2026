@@ -145,7 +145,7 @@ public class PortfolioService {
             BigDecimal avgPurchasePrice = totalCost.divide(BigDecimal.valueOf(totalQuantity), 2, RoundingMode.HALF_UP);
 
             // get current price from Stock entity
-            Stock stock = holdings.getFirst().getStock();
+            Stock stock = holdings.get(0).getStock();
             BigDecimal currentPrice = stock.getCurrentPrice();
 
             // calculate invested and current value
