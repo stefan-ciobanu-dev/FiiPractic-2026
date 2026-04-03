@@ -53,6 +53,20 @@ services:
     networks:
       - stocks-network
 
+  logbull:
+    container_name: logbull-v2
+    image: logbull/logbull:latest
+    ports:
+      - "4005:4005"
+    networks:
+      - stocks-network
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:4005/api/v1/system/health" ]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    
 networks:
   stocks-network:
     driver: bridge

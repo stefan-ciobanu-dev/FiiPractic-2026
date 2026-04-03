@@ -34,5 +34,12 @@ alphavantage:
   api-key: i-almost-versioned-my-api-key
   base-url: https://www.alphavantage.co/query
 
+logbull:
+  enabld: true
+  host: http://localhost:4005
+  project-id: 993a5123-8a54-4254-920e-61356377b220
+  api-key: lb_4f5cd056bd2c86bed621ef317ee08f23
+  log-level: INFO
+
 server:
   port: 8081

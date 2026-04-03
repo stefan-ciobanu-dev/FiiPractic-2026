@@ -5,6 +5,9 @@ import com.fiipractic.stocks.service.PriceRefreshPublisher;
 import com.fiipractic.stocks.service.StockService;
 
 import jakarta.validation.constraints.NotBlank;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -13,10 +16,13 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/stocks")
 public class StockController {
+
+    private static final Logger log = LoggerFactory.getLogger(StockController.class);
 
     private final StockService stockService;
     private final PriceRefreshPublisher priceRefreshPublisher;
@@ -56,11 +62,25 @@ public class StockController {
     @PostMapping("/refresh")
     public ResponseEntity<Map<String, String>> refreshAllPrices(@AuthenticationPrincipal Jwt jwt) {
         String userId = jwt.getSubject();
-        priceRefreshPublisher.publishRefreshAll(userId);
+        String correlationId = UUID.randomUUID().toString();
+        
+        // Log refresh request with correlation ID using MDC
+        try {
+            MDC.put("action", "refresh_all_requested");
+            MDC.put("userId", userId);
+            MDC.put("correlationId", correlationId);
+            log.info("Price refresh requested for all stocks");
+        } finally {
+            MDC.clear();
+        }
+        
+        priceRefreshPublisher.publishRefreshAll(userId, correlationId);
+        
         return ResponseEntity.accepted()
                 .body(Map.of(
                         "status", "QUEUED",
-                        "message", "Price refresh request for all stocks queued"
+                        "message", "Price refresh request for all stocks queued",
+                        "correlationId", correlationId
                 ));
     }
 
@@ -69,12 +89,27 @@ public class StockController {
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String symbol) {
         String userId = jwt.getSubject();
-        priceRefreshPublisher.publishRefresh(symbol, userId);
+        String correlationId = UUID.randomUUID().toString();
+        
+        // Log refresh request with correlation ID using MDC
+        try {
+            MDC.put("action", "refresh_requested");
+            MDC.put("symbol", symbol.toUpperCase());
+            MDC.put("userId", userId);
+            MDC.put("correlationId", correlationId);
+            log.info("Price refresh requested for {}", symbol.toUpperCase());
+        } finally {
+            MDC.clear();
+        }
+        
+        priceRefreshPublisher.publishRefresh(symbol, userId, correlationId);
+        
         return ResponseEntity.accepted()
                 .body(Map.of(
                         "status", "QUEUED",
                         "symbol", symbol.toUpperCase(),
-                        "message", "Price refresh request queued"
+                        "message", "Price refresh request queued",
+                        "correlationId", correlationId
                 ));
     }
 }

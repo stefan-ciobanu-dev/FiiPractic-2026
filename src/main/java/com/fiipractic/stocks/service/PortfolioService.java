@@ -14,6 +14,9 @@ import com.fiipractic.stocks.model.Stock;
 import com.fiipractic.stocks.repository.PortfolioHoldingRepository;
 import com.fiipractic.stocks.repository.PortfolioRepository;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +32,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class PortfolioService {
+
+    private static final Logger log = LoggerFactory.getLogger(PortfolioService.class);
 
     private final PortfolioRepository portfolioRepository;
     private final PortfolioHoldingRepository portfolioHoldingRepository;
@@ -53,7 +58,20 @@ public class PortfolioService {
                 .holdings(new ArrayList<>())
                 .userId(userId)
                 .build();
-        return toDTO(portfolioRepository.save(portfolio));
+        Portfolio saved = portfolioRepository.save(portfolio);
+        
+        // Log portfolio creation to LogBull using MDC
+        try {
+            MDC.put("action", "portfolio_created");
+            MDC.put("username", userId);
+            MDC.put("portfolioId", String.valueOf(saved.getId()));
+            MDC.put("portfolioName", saved.getName());
+            log.info("Portfolio created: {}", saved.getName());
+        } finally {
+            MDC.clear();
+        }
+        
+        return toDTO(saved);
     }
 
     @Transactional(readOnly = true)
@@ -173,7 +191,7 @@ public class PortfolioService {
         );
     }
 
-    public RefreshResponseDTO refreshPortfolioPrices(String userId, Long portfolioId) {
+    public RefreshResponseDTO refreshPortfolioPrices(String userId, Long portfolioId, String correlationId) {
         Portfolio portfolio = portfolioRepository.findById(portfolioId)
                 .filter(p -> p.getUserId().equals(userId))
                 .orElseThrow(() -> new UserNotOwnerOfPortfolioException("Portfolio not found or access denied"));
@@ -183,11 +201,26 @@ public class PortfolioService {
                 .distinct()
                 .toList();
 
-        // queue refresh for each symbol
-        symbols.forEach(symbol -> priceRefreshPublisher.publishRefresh(symbol, userId));
+        // queue refresh for each symbol with correlation ID
+        symbols.forEach(symbol -> {
+            String childCorrelationId = correlationId + "." + symbol;
+            priceRefreshPublisher.publishRefresh(symbol, userId, childCorrelationId);
+        });
+        
+        // Log portfolio refresh completion using MDC
+        try {
+            MDC.put("action", "portfolio_refresh_queued");
+            MDC.put("portfolioId", String.valueOf(portfolioId));
+            MDC.put("userId", userId);
+            MDC.put("symbolCount", String.valueOf(symbols.size()));
+            MDC.put("correlationId", correlationId);
+            log.info("Queued {} price refreshes for portfolio: {}", symbols.size(), portfolio.getName());
+        } finally {
+            MDC.clear();
+        }
 
         return new RefreshResponseDTO(
-                portfolioId.toString(), symbols, symbols.size(), "Price refresh queued for " + symbols.size() + " stocks");
+                portfolioId.toString(), symbols, symbols.size(), "Price refresh queued for " + symbols.size() + " stocks", correlationId);
     }
 
     private PortfolioDTO toDTO(Portfolio p) {
@@ -210,6 +243,6 @@ public class PortfolioService {
         );
     }
 
-    public record RefreshResponseDTO(String portfolioId, List<String> symbolsQueued, int totalSymbols, String message) {
+    public record RefreshResponseDTO(String portfolioId, List<String> symbolsQueued, int totalSymbols, String message, String correlationId) {
     }
 }
