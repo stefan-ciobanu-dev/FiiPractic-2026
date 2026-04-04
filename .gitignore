@@ -37,3 +37,5 @@ build/
 postgres_data
 .mvn
 .gitattributes
+rabbitmq_data
+logbull-data
