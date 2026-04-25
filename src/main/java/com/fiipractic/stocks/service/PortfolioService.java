@@ -82,7 +82,7 @@ public class PortfolioService {
 
     @Transactional(readOnly = true)
     public List<PortfolioDTO> getAllPortfolios() {
-        return portfolioRepository.findAll()
+        return portfolioRepository.findAllPortfolios()
                 .stream()
                 .map(this::toDTO)
                 .collect(Collectors.toList());
